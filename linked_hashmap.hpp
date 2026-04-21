@@ -48,7 +48,7 @@ private:
     Node *head = nullptr; // first in insertion order
     Node *tail = nullptr; // last in insertion order
 
-    static size_t initial_bucket_count() { return 8; }
+    static size_t initial_bucket_count() { return static_cast<size_t>(1) << 18; }
 
     void init_buckets(size_t n) {
         bucket_count = n;
