@@ -96,7 +96,7 @@ private:
 
     Node* find_node(const Key &key) const {
         if (bucket_count == 0) return nullptr;
-        size_t idx = hasher(key) % bucket_count;
+        size_t idx = hasher(key) & (bucket_count - 1);
         for (Node *p = buckets[idx]; p; p = p->bnext) {
             if (equaler(p->kv.first, key)) return p;
         }
@@ -104,7 +104,7 @@ private:
     }
 
     void insert_into_bucket(Node *node) {
-        size_t idx = hasher(node->kv.first) % bucket_count;
+        size_t idx = hasher(node->kv.first) & (bucket_count - 1);
         node->bnext = buckets[idx];
         buckets[idx] = node;
     }
@@ -117,7 +117,7 @@ private:
     }
 
     void erase_from_bucket(const Key &key, Node *node) {
-        size_t idx = hasher(key) % bucket_count;
+        size_t idx = hasher(key) & (bucket_count - 1);
         Node *prev = nullptr;
         for (Node *p = buckets[idx]; p; p = p->bnext) {
             if (p == node) {
@@ -346,13 +346,13 @@ public:
 	 */
     T & operator[](const Key &key) {
         if (bucket_count == 0) init_buckets(initial_bucket_count());
-        size_t idx = hasher(key) % bucket_count;
+        size_t idx = hasher(key) & (bucket_count - 1);
         Node *n = find_in_bucket(idx, key);
         if (n) return n->kv.second;
         // potential rehash if needed
         if (elem_count + 1 > grow_threshold) {
             rehash(bucket_count * 2);
-            idx = hasher(key) % bucket_count;
+            idx = hasher(key) & (bucket_count - 1);
         }
         Node *nn = new Node(value_type(key, T()));
         link_at_tail(nn);
@@ -422,12 +422,12 @@ public:
 	 */
     pair<iterator, bool> insert(const value_type &value) {
         if (bucket_count == 0) init_buckets(initial_bucket_count());
-        size_t idx = hasher(value.first) % bucket_count;
+        size_t idx = hasher(value.first) & (bucket_count - 1);
         Node *exist = find_in_bucket(idx, value.first);
         if (exist) return pair<iterator, bool>(iterator(this, exist, false), false);
         if (elem_count + 1 > grow_threshold) {
             rehash(bucket_count * 2);
-            idx = hasher(value.first) % bucket_count;
+            idx = hasher(value.first) & (bucket_count - 1);
         }
         Node *nn = new Node(value);
         link_at_tail(nn);
