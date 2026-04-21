@@ -91,6 +91,25 @@ class ACMOJClient:
 
         return result
 
+    def submit_code(self, problem_id: int, language: str, code_text: str) -> Optional[Dict]:
+        """Submit raw source code text to ACMOJ.
+
+        Args:
+            problem_id: ACMOJ problem id.
+            language: Language identifier, e.g., 'cpp'.
+            code_text: The source text to submit.
+
+        Returns the parsed response dict on success, or None on error.
+        """
+        data = {
+            "language": language,
+            "code": code_text
+        }
+        result = self._make_request("POST", f"/problem/{problem_id}/submit", data=data)
+        if result and 'id' in result:
+            self._save_submission_id(result['id'])
+        return result
+
     def get_submission_detail(self, submission_id: int) -> Optional[Dict]:
         return self._make_request("GET", f"/submission/{submission_id}")
 
