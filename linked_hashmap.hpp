@@ -54,7 +54,7 @@ private:
         bucket_count = n;
         buckets = new Node*[bucket_count];
         for (size_t i = 0; i < bucket_count; ++i) buckets[i] = nullptr;
-        grow_threshold = bucket_count * 3 / 4; // load factor ~0.75
+        grow_threshold = bucket_count / 2; // load factor ~0.5 for speed
     }
 
     void unlink_from_order(Node *node) {
@@ -82,7 +82,7 @@ private:
         delete [] buckets;
         buckets = newBuckets;
         bucket_count = new_bucket_count;
-        grow_threshold = bucket_count * 3 / 4;
+        grow_threshold = bucket_count / 2;
     }
 
     void ensure_capacity_for_insert() {
@@ -107,6 +107,13 @@ private:
         size_t idx = hasher(node->kv.first) % bucket_count;
         node->bnext = buckets[idx];
         buckets[idx] = node;
+    }
+
+    Node* find_in_bucket(size_t idx, const Key &key) const {
+        for (Node *p = buckets[idx]; p; p = p->bnext) {
+            if (equaler(p->kv.first, key)) return p;
+        }
+        return nullptr;
     }
 
     void erase_from_bucket(const Key &key, Node *node) {
@@ -337,16 +344,23 @@ public:
 	 * Returns a reference to the value that is mapped to a key equivalent to key,
 	 *   performing an insertion if such key does not already exist.
 	 */
-	T & operator[](const Key &key) {
-		Node *n = find_node(key);
-		if (n) return n->kv.second;
-		ensure_capacity_for_insert();
-		Node *nn = new Node(value_type(key, T()));
-		link_at_tail(nn);
-		insert_into_bucket(nn);
-		++elem_count;
-		return nn->kv.second;
-	}
+    T & operator[](const Key &key) {
+        if (bucket_count == 0) init_buckets(initial_bucket_count());
+        size_t idx = hasher(key) % bucket_count;
+        Node *n = find_in_bucket(idx, key);
+        if (n) return n->kv.second;
+        // potential rehash if needed
+        if (elem_count + 1 > grow_threshold) {
+            rehash(bucket_count * 2);
+            idx = hasher(key) % bucket_count;
+        }
+        Node *nn = new Node(value_type(key, T()));
+        link_at_tail(nn);
+        nn->bnext = buckets[idx];
+        buckets[idx] = nn;
+        ++elem_count;
+        return nn->kv.second;
+    }
  
 	/**
 	 * behave like at() throw index_out_of_bound if such key does not exist.
@@ -406,16 +420,22 @@ public:
 	 *   the iterator to the new element (or the element that prevented the insertion), 
 	 *   the second one is true if insert successfully, or false.
 	 */
-	pair<iterator, bool> insert(const value_type &value) {
-		Node *exist = find_node(value.first);
-		if (exist) return pair<iterator, bool>(iterator(this, exist, false), false);
-		ensure_capacity_for_insert();
-		Node *nn = new Node(value);
-		link_at_tail(nn);
-		insert_into_bucket(nn);
-		++elem_count;
-		return pair<iterator, bool>(iterator(this, nn, false), true);
-	}
+    pair<iterator, bool> insert(const value_type &value) {
+        if (bucket_count == 0) init_buckets(initial_bucket_count());
+        size_t idx = hasher(value.first) % bucket_count;
+        Node *exist = find_in_bucket(idx, value.first);
+        if (exist) return pair<iterator, bool>(iterator(this, exist, false), false);
+        if (elem_count + 1 > grow_threshold) {
+            rehash(bucket_count * 2);
+            idx = hasher(value.first) % bucket_count;
+        }
+        Node *nn = new Node(value);
+        link_at_tail(nn);
+        nn->bnext = buckets[idx];
+        buckets[idx] = nn;
+        ++elem_count;
+        return pair<iterator, bool>(iterator(this, nn, false), true);
+    }
  
 	/**
 	 * erase the element at pos.
